@@ -20,7 +20,7 @@ class ContextIngestionService
     {
         $sourceText = $item->kind === 'text'
             ? (string) $item->body_text
-            : $this->extractor->extract(Storage::disk('local')->path($item->file_path), $item->mime_type);
+            : $this->extractDocumentFromStorage($item);
 
         $chunks = $this->chunking->split($sourceText);
 
@@ -49,5 +49,19 @@ class ContextIngestionService
                 'indexed_at' => now(),
             ])->save();
         });
+    }
+
+    protected function extractDocumentFromStorage(ContextItem $item): string
+    {
+        $disk = Storage::disk(config('filesystems.default'));
+        $tempPath = tempnam(sys_get_temp_dir(), 'ctx-');
+
+        file_put_contents($tempPath, $disk->get($item->file_path));
+
+        try {
+            return $this->extractor->extract($tempPath, $item->mime_type);
+        } finally {
+            @unlink($tempPath);
+        }
     }
 }

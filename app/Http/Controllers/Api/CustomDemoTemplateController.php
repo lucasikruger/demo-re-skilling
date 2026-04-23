@@ -179,7 +179,10 @@ class CustomDemoTemplateController extends Controller
             $uploadedFile = $fileKey ? $request->file("files.$fileKey") : null;
 
             if ($uploadedFile) {
-                $path = $uploadedFile->store('custom-tests/'.$template->public_id.'/'.$folder, 'local');
+                $path = $uploadedFile->store(
+                    'custom-tests/'.$template->public_id.'/'.$folder,
+                    config('filesystems.default')
+                );
 
                 return [
                     'type' => 'file',

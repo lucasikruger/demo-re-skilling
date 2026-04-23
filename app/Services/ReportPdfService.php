@@ -16,7 +16,7 @@ class ReportPdfService
         ]);
 
         $path = 'reports/'.$session->public_id.'.pdf';
-        Storage::disk('local')->put($path, $pdf->output());
+        Storage::disk(config('filesystems.default'))->put($path, $pdf->output());
 
         return $path;
     }

@@ -12,7 +12,7 @@ class ReportDownloadController extends Controller
     {
         abort_unless($interviewSession->report?->pdf_path, 404);
 
-        return Storage::disk('local')->download(
+        return Storage::disk(config('filesystems.default'))->download(
             $interviewSession->report->pdf_path,
             'informe-'.$interviewSession->public_id.'.pdf'
         );

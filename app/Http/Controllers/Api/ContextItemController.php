@@ -35,7 +35,7 @@ class ContextItemController extends Controller
     public function destroy(ContextItem $contextItem): JsonResponse
     {
         if ($contextItem->file_path) {
-            Storage::disk('local')->delete($contextItem->file_path);
+            Storage::disk(config('filesystems.default'))->delete($contextItem->file_path);
         }
 
         $contextItem->delete();
@@ -72,7 +72,10 @@ class ContextItemController extends Controller
         ]);
 
         $file = $validated['document'];
-        $path = $file->store($scope === 'global' ? 'context/global' : 'context/sessions/'.$session->public_id, 'local');
+        $path = $file->store(
+            $scope === 'global' ? 'context/global' : 'context/sessions/'.$session->public_id,
+            config('filesystems.default')
+        );
 
         $item = ContextItem::create([
             'interview_session_id' => $session?->id,

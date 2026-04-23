@@ -25,11 +25,14 @@ class InterviewReportMail extends Mailable
                 'report' => $this->session->report,
             ]);
 
-        if ($this->session->report?->pdf_path && Storage::disk('local')->exists($this->session->report->pdf_path)) {
-            $mail->attach(Storage::disk('local')->path($this->session->report->pdf_path), [
-                'as' => 'informe-'.$this->session->public_id.'.pdf',
-                'mime' => 'application/pdf',
-            ]);
+        $disk = Storage::disk(config('filesystems.default'));
+
+        if ($this->session->report?->pdf_path && $disk->exists($this->session->report->pdf_path)) {
+            $mail->attachData(
+                $disk->get($this->session->report->pdf_path),
+                'informe-'.$this->session->public_id.'.pdf',
+                ['mime' => 'application/pdf']
+            );
         }
 
         return $mail;

@@ -17,8 +17,9 @@ class GeminiService
             return $this->fakeAnswerAnalysis($answer);
         }
 
-        $audioPath = Storage::disk('local')->path($answer->audio_path);
-        $base64 = base64_encode(file_get_contents($audioPath) ?: '');
+        $base64 = base64_encode(
+            Storage::disk(config('filesystems.default'))->get($answer->audio_path)
+        );
 
         $prosodyMaterials = collect($answer->session?->customDemoTemplate?->definition['prosody_materials'] ?? [])
             ->filter(fn ($m) => ($m['type'] ?? 'text') === 'text' && !empty($m['body_text']))

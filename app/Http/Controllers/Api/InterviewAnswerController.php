@@ -32,17 +32,19 @@ class InterviewAnswerController extends Controller
 
     protected function storeForAnswer(Request $request, InterviewSession $interviewSession, InterviewAnswer $answer): JsonResponse
     {
+        $disk = Storage::disk(config('filesystems.default'));
+
         $validated = $request->validate([
             'audio' => ['required', 'file', 'max:10240'],
             'duration_seconds' => ['nullable', 'integer', 'min:1'],
         ]);
 
         if ($answer->audio_path) {
-            Storage::disk('local')->delete($answer->audio_path);
+            $disk->delete($answer->audio_path);
         }
 
         $file = $validated['audio'];
-        $path = $file->store('answers/'.$interviewSession->public_id, 'local');
+        $path = $file->store('answers/'.$interviewSession->public_id, config('filesystems.default'));
 
         $answer->update([
             'status' => 'queued',

@@ -48,11 +48,14 @@ class InterviewSessionController extends Controller
         ));
     }
 
-    public function finalize(InterviewSession $interviewSession): JsonResponse
+    public function finalize(InterviewSession $interviewSession, Request $request): JsonResponse
     {
+        $email = $request->string('email')->value() ?: null;
+
         $interviewSession->update([
             'status' => 'queued_for_report',
             'processing_stage' => 'Preparando informe',
+            'participant_email' => $email,
         ]);
 
         Report::firstOrCreate(

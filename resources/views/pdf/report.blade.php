@@ -31,22 +31,5 @@
         </div>
     @endforeach
 
-    <h2>Traza del proceso</h2>
-    @foreach(($report->trace['answers'] ?? []) as $trace)
-        <div class="block">
-            <div class="section-title">{{ $trace['question'] ?? 'Pregunta' }}</div>
-            <div><strong>Transcripcion:</strong> {{ $trace['transcript'] ?? '' }}</div>
-            <div><strong>Prosodia:</strong> {{ $trace['prosody_summary'] ?? '' }}</div>
-        </div>
-    @endforeach
-
-    <div class="block">
-        <div class="section-title">Contexto recuperado</div>
-        <ul>
-            @foreach(($report->trace['retrieved_context'] ?? []) as $snippet)
-                <li>{{ $snippet['title'] ?? 'Contexto' }} ({{ $snippet['scope'] ?? 'n/a' }}): {{ $snippet['content'] ?? '' }}</li>
-            @endforeach
-        </ul>
-    </div>
 </body>
 </html>

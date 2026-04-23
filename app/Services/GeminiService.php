@@ -72,7 +72,7 @@ PROMPT;
                     ],
                     [
                         'inline_data' => [
-                            'mime_type' => $answer->mime_type ?: 'audio/webm',
+                            'mime_type' => $this->resolveAudioMimeType($answer->mime_type),
                             'data' => $base64,
                         ],
                     ],
@@ -196,5 +196,14 @@ PROMPT;
             ],
             'trace_summary' => 'Modo demo sin API key: se generaron transcripciones y analisis simulados consistentes para exponer el flujo completo.',
         ];
+    }
+
+    protected function resolveAudioMimeType(string $mimeType): string
+    {
+        if (str_starts_with($mimeType, 'video/')) {
+            return 'audio/webm';
+        }
+
+        return $mimeType;
     }
 }

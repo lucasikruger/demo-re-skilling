@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Mail\InterviewReportMail;
 use App\Models\InterviewSession;
 use App\Models\Report;
 use App\Services\GeminiService;
@@ -9,6 +10,7 @@ use App\Services\ReportPdfService;
 use App\Services\RetrievalService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Mail;
 use Throwable;
 
 class GenerateInterviewReportJob implements ShouldQueue
@@ -105,6 +107,10 @@ class GenerateInterviewReportJob implements ShouldQueue
             'processing_stage' => 'Informe listo',
             'completed_at' => now(),
         ]);
+
+        if ($session->participant_email) {
+            Mail::to($session->participant_email)->send(new InterviewReportMail($session->fresh(['answers.question', 'report'])));
+        }
     }
 
     public function failed(Throwable $exception): void

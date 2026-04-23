@@ -33,8 +33,24 @@ function useRecorder() {
             setBlob(null);
             setDuration(0);
             setLimitSeconds(maxSeconds);
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                setError('Tu navegador no soporta la grabacion de audio. Intenta con un navegador mas reciente o desde una computadora de escritorio.');
+                return;
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const recorder = new MediaRecorder(stream);
+
+            const mimeType = [
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/mp4',
+                'audio/ogg;codecs=opus',
+            ].find(t => MediaRecorder.isTypeSupported(t)) ?? '';
+
+            const recorder = mimeType
+                ? new MediaRecorder(stream, { mimeType })
+                : new MediaRecorder(stream);
             chunksRef.current = [];
             startedAtRef.current = Date.now();
             recorder.ondataavailable = (event) => {
@@ -51,7 +67,8 @@ function useRecorder() {
                     clearTimeout(autoStopTimeoutRef.current);
                     autoStopTimeoutRef.current = null;
                 }
-                const nextBlob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+                const actualType = recorder.mimeType || mimeType || 'audio/webm';
+                const nextBlob = new Blob(chunksRef.current, { type: actualType });
                 setBlob(nextBlob);
                 setDuration(Math.min(maxSeconds, Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000))));
                 stream.getTracks().forEach((track) => track.stop());
@@ -75,8 +92,13 @@ function useRecorder() {
             }, maxSeconds * 1000);
             mediaRecorderRef.current = recorder;
             setIsRecording(true);
-        } catch {
-            setError('No pudimos acceder al microfono. Verifica los permisos del navegador.');
+        } catch (err) {
+            const msg = err?.name === 'NotAllowedError'
+                ? 'Permiso de microfono denegado. Habilitalo desde la configuracion del navegador.'
+                : err?.name === 'NotFoundError'
+                    ? 'No se encontro ningun microfono en este dispositivo.'
+                    : `No se pudo iniciar la grabacion: ${err?.message || 'error desconocido'}`;
+            setError(msg);
         }
     };
 
@@ -131,6 +153,7 @@ function App() {
     const [adminUnlocked, setAdminUnlocked] = useState(false);
     const [autoFinalizing, setAutoFinalizing] = useState(false);
     const [reportReturnTarget, setReportReturnTarget] = useState('mode');
+    const [captureEmail, setCaptureEmail] = useState('');
     const recorder = useRecorder();
 
     const selectedAnswer = useMemo(() => {
@@ -206,8 +229,14 @@ function App() {
         }
     }, [selectedSession, currentScreen]);
 
+    // Auto-finalize only when the user is NOT on the interview screen
+    // (they left before completing). On the interview screen, the email form handles it.
     useEffect(() => {
         if (!selectedSession?.session || selectedSession.session.status !== 'recording' || autoFinalizing) {
+            return;
+        }
+
+        if (currentScreen === 'interview') {
             return;
         }
 
@@ -225,7 +254,7 @@ function App() {
 
         setAutoFinalizing(true);
         finalizeSession().finally(() => setAutoFinalizing(false));
-    }, [selectedSession?.session?.status, selectedSession?.answers, autoFinalizing]);
+    }, [selectedSession?.session?.status, selectedSession?.answers, autoFinalizing, currentScreen]);
 
     useEffect(() => {
         if (!message) return undefined;
@@ -293,7 +322,61 @@ function App() {
             prosody_materials: [],
             general_context_materials: [],
             questions: [
-                { prompt: '', time_limit_seconds: 180, analysis_materials: [] },
+                {
+                    prompt: 'Contame brevemente por que pediste esta evaluacion.',
+                    time_limit_seconds: 180,
+                    analysis_materials: [
+                        {
+                            type: 'text',
+                            title: 'Motivacion para solicitar evaluacion',
+                            body_text: 'Las personas suelen solicitar evaluaciones de comunicacion cuando perciben que sus mensajes no llegan con claridad o que el impacto de su discurso no refleja su intencion. La autoevaluacion inicial es un predictor confiable de apertura al cambio. (Kluger & DeNisi, 1996)',
+                        },
+                    ],
+                },
+                {
+                    prompt: 'Que situaciones te generan mas tension o incomodidad en el trabajo?',
+                    time_limit_seconds: 180,
+                    analysis_materials: [
+                        {
+                            type: 'text',
+                            title: 'Tension situacional y comunicacion',
+                            body_text: 'El estres situacional activa el eje hipotalamico-hipofisario-adrenal, elevando el cortisol y reduciendo la fluidez verbal, la precision lexica y el control prosodico. Identificar los disparadores permite disenar intervenciones especificas. (McEwen, 2007)',
+                        },
+                    ],
+                },
+                {
+                    prompt: 'Cuando sentis presion, como notas que cambia tu forma de hablar?',
+                    time_limit_seconds: 180,
+                    analysis_materials: [
+                        {
+                            type: 'text',
+                            title: 'Indicadores vocales de presion',
+                            body_text: 'Bajo presion aguda, el habla tiende a acelerarse, el tono sube y aparecen mas disfluencias (pausas llenas, repeticiones). Estos patrones son medibles con analisis acustico y constituyen biometricos validos del estado emocional. (Laukka et al., 2008)',
+                        },
+                    ],
+                },
+                {
+                    prompt: 'Que te gustaria que este informe ayude a entender mejor?',
+                    time_limit_seconds: 180,
+                    analysis_materials: [
+                        {
+                            type: 'text',
+                            title: 'Expectativas sobre el feedback de comunicacion',
+                            body_text: 'Cuando el destinatario define de antemano que espera del informe, aumenta la relevancia percibida y la probabilidad de aplicar las recomendaciones. El feedback orientado a metas tiene mayor efecto que el feedback generico. (Locke & Latham, 2002)',
+                        },
+                    ],
+                },
+                {
+                    prompt: 'Hay algun contexto personal o profesional que deba tenerse en cuenta?',
+                    time_limit_seconds: 180,
+                    analysis_materials: [
+                        {
+                            type: 'text',
+                            title: 'Contexto personal como variable moderadora',
+                            body_text: 'Factores como el rol dentro del equipo, la antiguedad en la organizacion o circunstancias personales recientes moderan la interpretacion de los patrones prosodicos observados. El contexto mejora la precision del diagnostico. (Lazarus & Folkman, 1984)',
+                        },
+                    ],
+                },
             ],
         });
         setCurrentScreen('custom-editor');
@@ -501,8 +584,10 @@ function App() {
             return;
         }
 
-        const file = new File([recorder.blob], `respuesta-${selectedAnswer.question_id}.webm`, {
-            type: recorder.blob.type || 'audio/webm',
+        const blobType = recorder.blob.type || 'audio/webm';
+        const ext = blobType.includes('mp4') ? 'mp4' : blobType.includes('ogg') ? 'ogg' : 'webm';
+        const file = new File([recorder.blob], `respuesta-${selectedAnswer.question_id ?? selectedAnswer.public_id}.${ext}`, {
+            type: blobType,
         });
         const formData = new FormData();
         formData.append('audio', file);
@@ -535,15 +620,15 @@ function App() {
         setUploadingAnswerId(null);
     };
 
-    const finalizeSession = async () => {
+    const finalizeSession = async (email = '') => {
         if (!selectedSession) {
             return;
         }
 
         return runTask(async () => {
-            await api.post(`/sessions/${selectedSession.session.public_id}/finalize`);
+            await api.post(`/sessions/${selectedSession.session.public_id}/finalize`, { email: email || '' });
             await loadSession(selectedSession.session.public_id);
-        }, 'Informe en cola.');
+        }, email ? 'Informe en cola. Te enviamos el resultado por email.' : 'Informe en cola.');
     };
 
     const unlockReports = async () => {
@@ -621,6 +706,7 @@ function App() {
         }
         setCurrentScreen('intro');
         setAdminUnlocked(false);
+        setReportsPassword('');
         setParticipantName('');
         setSelectedSession(null);
         setSelectedMode(null);
@@ -735,6 +821,8 @@ function App() {
                     uploadingAnswerId={uploadingAnswerId}
                     onUploadAnswer={uploadAnswer}
                     onFinalize={finalizeSession}
+                    captureEmail={captureEmail}
+                    setCaptureEmail={setCaptureEmail}
                     debugEnabled={adminUnlocked}
                 />
             ) : null}
@@ -1202,6 +1290,8 @@ function InterviewScreen({
     uploadingAnswerId,
     onUploadAnswer,
     onFinalize,
+    captureEmail,
+    setCaptureEmail,
     debugEnabled,
 }) {
     if (!selectedSession) {
@@ -1219,33 +1309,14 @@ function InterviewScreen({
 
     return (
         <section className="interview-stage slide-in">
-            <div className="step-header">
-                <div>
-                    <p className="eyebrow">Paso {allSubmitted ? totalAnswers : stepNumber} de {totalAnswers}</p>
-                    <h2>{activeAnswer?.prompt_snapshot ?? activeAnswer?.question?.prompt ?? 'Respuestas completas'}</h2>
-                    <p className="muted step-subcopy">
-                        {activeAnswer
-                            ? 'Grabamos una pregunta a la vez para mantener el flujo limpio y controlado.'
-                            : allProcessed
-                                ? 'Las cinco respuestas ya fueron procesadas. Ya podes generar el informe final.'
-                                : 'La ultima respuesta ya se envio. Estamos esperando el procesamiento antes de habilitar el informe.'}
-                    </p>
-                </div>
-                <div className="progress-card">
-                    <span>{processedAnswers}/{totalAnswers} respuestas procesadas</span>
-                    <div className="progress-track">
-                        <div className="progress-fill" style={{ width: `${(processedAnswers / Math.max(totalAnswers, 1)) * 100}%` }} />
-                    </div>
-                </div>
-            </div>
-
             <div className="interview-grid">
                 <article className="panel recorder-stage">
                     <div className="pulse-ring" />
-                    <p className="eyebrow">Grabacion</p>
-                    <h3>{activeAnswer ? 'Captura de voz' : 'Entrevista completa'}</h3>
                     {activeAnswer ? (
                         <>
+                            <p className="eyebrow">Pregunta</p>
+                            <h3>{activeAnswer.prompt_snapshot ?? activeAnswer.question?.prompt ?? 'Pregunta'}</h3>
+                            <p className="eyebrow" style={{ marginTop: '1.25rem' }}>Grabacion</p>
                             {recorder.error ? <p className="feedback">{recorder.error}</p> : null}
                             <div className="row-actions">
                                 {!recorder.isRecording && !recorder.blob ? (
@@ -1307,11 +1378,13 @@ function InterviewScreen({
                         {Array.from({ length: totalAnswers }, (_, index) => {
                             const answer = selectedSession.answers.find((item) => item.sort_order === index + 1);
                             const isDone = answer?.status === 'processed';
+                            const isFailed = answer?.status === 'failed';
                             const isActive = ['queued', 'processing'].includes(answer?.status) || uploadingAnswerId === answer?.id;
-                            const isCurrent = !isDone && !isActive && answer?.status === 'pending' && (index + 1) === stepNumber;
+                            const isCurrent = !isDone && !isActive && !isFailed && answer?.status === 'pending' && (index + 1) === stepNumber;
 
                             let pillClass = 'step-pill';
                             if (isDone) pillClass += ' done';
+                            else if (isFailed) pillClass += ' failed';
                             else if (isActive) pillClass += ' active';
                             else if (isCurrent) pillClass += ' current';
 
@@ -1323,6 +1396,26 @@ function InterviewScreen({
                         })}
                     </div>
                     <p className="muted">Las preguntas se van habilitando y procesando a medida que avanzas.</p>
+                    {allProcessed ? (
+                        <div className="finalize-form">
+                            <p className="eyebrow">Generar informe</p>
+                            <p className="finalize-hint">
+                                Ingresa un email para recibir el informe cuando este listo, incluso si salis antes de que termine.
+                                Si no, podes verlo desde debug mode.
+                            </p>
+                            <div className="inline-form">
+                                <input
+                                    type="email"
+                                    placeholder="tu@email.com (opcional)"
+                                    value={captureEmail}
+                                    onChange={(e) => setCaptureEmail(e.target.value)}
+                                />
+                                <button onClick={() => onFinalize(captureEmail)}>
+                                    Generar informe
+                                </button>
+                            </div>
+                        </div>
+                    ) : null}
                     {debugEnabled && debugAnswers.length ? (
                         <DebugAccordion label="Open debug" subtitle="Trazas internas por respuesta">
                             <div className="stack compact answer-expander-list">
@@ -1414,7 +1507,7 @@ function ReportStage({ selectedSession, reportEmail, setReportEmail, onSendEmail
                     <button onClick={onSendEmail}>Enviar por email</button>
                 </div>
             </div>
-            <ReportView session={selectedSession.session} report={selectedSession.report} debugEnabled={debugEnabled} />
+            <ReportView session={selectedSession.session} report={selectedSession.report} />
         </section>
     );
 }
@@ -1472,9 +1565,9 @@ function ContextList({ items, onDelete }) {
     );
 }
 
-function ReportView({ session, report, debugEnabled }) {
+function ReportView({ session, report }) {
     return (
-        <div className={`report-grid${debugEnabled ? '' : ' report-grid-single'}`}>
+        <div className="report-grid-single">
             <article className="report-summary panel deluxe-panel">
                 <p className="eyebrow">Resumen ejecutivo</p>
                 <h2>{session.participant_name}</h2>
@@ -1489,36 +1582,6 @@ function ReportView({ session, report, debugEnabled }) {
                     ))}
                 </div>
             </article>
-
-            {debugEnabled ? (
-                <article className="report-trace panel deluxe-panel">
-                    <p className="eyebrow">Behind the scenes</p>
-                    <h3>Proceso de IA</h3>
-                    <p>{report.trace?.trace_summary || 'Se muestra el detalle de entradas, salidas y contexto recuperado.'}</p>
-                    <DebugAccordion label="Abrir debug" subtitle="Contexto total y mini expanders por respuesta">
-                        <details className="trace-expander general-debug">
-                            <summary>
-                                <span>Debug general</span>
-                                <small>Contexto recuperado total</small>
-                            </summary>
-                            <div className="trace-expander-body">
-                                {(report.trace?.retrieved_context || []).map((snippet, index) => (
-                                    <div className="snippet" key={index}>
-                                        <strong>{snippet.title}</strong>
-                                        <small>{snippet.scope} · source: {snippet.source} · score {snippet.score}</small>
-                                        <p>{snippet.content}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </details>
-                        <div className="stack compact">
-                            {(report.trace?.answers || []).map((answer, index) => (
-                                <AnswerTraceExpander key={index} answer={answer} reportMode />
-                            ))}
-                        </div>
-                    </DebugAccordion>
-                </article>
-            ) : null}
         </div>
     );
 }

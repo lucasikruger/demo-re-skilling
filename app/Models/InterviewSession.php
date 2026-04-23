@@ -12,6 +12,7 @@ class InterviewSession extends Model
 {
     protected $fillable = [
         'participant_name',
+        'participant_email',
         'flow_mode',
         'internal_session_code',
         'custom_demo_template_id',

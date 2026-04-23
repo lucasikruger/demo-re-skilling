@@ -11,37 +11,52 @@ El stack es el mismo que usa Re-Skilling en producción:
 - **Base de datos**: PostgreSQL 17 con extensión pgvector para búsqueda semántica (RAG)
 - **Cola de trabajos**: Laravel Queue con driver `database`
 - **IA**: Google Gemini 2.5 Flash — transcripción de audio y análisis prosódico
-- **Email**: Resend (transport HTTP de Laravel)
-- **Storage**: AWS S3 en producción, disco local en desarrollo
-- **Deploy**: Railway (servicios web + worker + postgres)
+- **Email**: Resend (transport HTTP de Laravel, paquete `resend/resend-php`)
+- **Storage**: AWS S3 en producción (Railway Object Storage), disco local en desarrollo
+- **Deploy**: Railway
 - **PDF**: DomPDF (barryvdh/laravel-dompdf)
 
-## Arquitectura
+## Arquitectura en Railway
+
+Cuatro servicios en el mismo proyecto Railway:
+
+![Railway stack](misc/railway_stack.webp)
+
+| Servicio | Descripción |
+|---|---|
+| `laravel-web` | App principal — API + frontend compilado |
+| `laravel-worker` | Procesa jobs de Gemini y generación de informes |
+| `Postgres` | PostgreSQL 17 con pgvector, volumen persistente |
+| `demo-assets` | Object Storage (S3-compatible) para audios y PDFs |
+
+El dominio `re-skilling-demo.lucaskruger.com` apunta al servicio `laravel-web` mediante un **Custom Domain** configurado en Railway (Settings → Networking → Custom Domain). Se agrega un CNAME en el DNS de `lucaskruger.com` apuntando al dominio interno de Railway.
+
+## Flujo del pipeline
 
 ```
 Navegador (React SPA)
     │
     ▼
-Laravel API (web)          ← graba y sube audio, crea sesiones
+laravel-web (API)          ← sube audio a S3, crea sesión en Postgres
     │
-    ▼
-Cola de trabajos (worker)
-    ├── ProcessInterviewAnswerJob  → llama a Gemini con el audio
-    └── GenerateInterviewReportJob → genera informe + PDF + email
+    ▼ (encola jobs)
+laravel-worker
+    ├── ProcessInterviewAnswerJob  → lee audio de S3, llama a Gemini
+    └── GenerateInterviewReportJob → genera informe + PDF en S3 + email
 ```
 
 ## Levantar en local
 
 ```bash
 cp .env.example .env
-# Completar GEMINI_API_KEY, RESEND_API_KEY, credenciales S3 en .env
+# Completar GEMINI_API_KEY, RESEND_API_KEY en .env
 
 docker compose up --build
 ```
 
 La app queda en `http://localhost:8080`.
 
-Para acceder desde el celular en la misma red, setear:
+Para acceder desde el celular en la misma red WiFi, agregar al `.env`:
 
 ```
 VITE_DEV_HOST=<tu-ip-local>   # ej: 192.168.0.100
@@ -51,11 +66,41 @@ VITE_DEV_HOST=<tu-ip-local>   # ej: 192.168.0.100
 
 | Variable | Descripción |
 |---|---|
-| `GEMINI_API_KEY` | API key de Google AI Studio |
+| `GEMINI_API_KEY` | API key de Google AI Studio (gratis en aistudio.google.com) |
 | `RESEND_API_KEY` | API key de Resend para emails |
-| `MAIL_FROM_ADDRESS` | Dirección verificada en Resend |
-| `DEMO_REPORTS_PASSWORD` | Contraseña para modo debug |
+| `MAIL_FROM_ADDRESS` | Dirección verificada en Resend (ej: `demo@tudominio.com`) |
+| `DEMO_REPORTS_PASSWORD` | Contraseña para activar modo debug |
 | `FILESYSTEM_DISK` | `local` en dev, `s3` en producción |
+
+## Configurar emails con Resend
+
+Se usa el transport HTTP de Resend (no SMTP, ya que Railway bloquea el puerto 587 saliente).
+
+1. Crear cuenta en [resend.com](https://resend.com)
+2. Ir a **Domains** → **Add Domain** → seguir los pasos de DNS para verificar el dominio
+3. Crear una API key en **API Keys**
+4. Setear en Railway (o `.env` local):
+
+```
+MAIL_MAILER=resend
+RESEND_API_KEY=re_...
+MAIL_FROM_ADDRESS=demo@tudominio.com
+```
+
+El paquete `resend/resend-php` y `symfony/http-client` ya están en `composer.json`.
+
+## Dominio personalizado en Railway
+
+Para mapear `re-skilling-demo.lucaskruger.com` al servicio `laravel-web`:
+
+1. En Railway → servicio `laravel-web` → **Settings** → **Networking** → **Custom Domain**
+2. Ingresar `re-skilling-demo.lucaskruger.com`
+3. Railway muestra un valor CNAME (ej: `laravel-web-production.up.railway.app`)
+4. En el panel DNS de `lucaskruger.com`, agregar:
+   ```
+   CNAME  re-skilling-demo  →  laravel-web-production.up.railway.app
+   ```
+5. Railway provisiona el certificado SSL automáticamente
 
 ## Modo debug
 

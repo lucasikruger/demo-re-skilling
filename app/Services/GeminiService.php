@@ -221,12 +221,4 @@ PROMPT;
         ];
     }
 
-    protected function resolveAudioMimeType(string $mimeType): string
-    {
-        if (str_starts_with($mimeType, 'video/')) {
-            return 'audio/webm';
-        }
-
-        return $mimeType;
-    }
 }

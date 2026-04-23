@@ -1507,7 +1507,7 @@ function ReportStage({ selectedSession, reportEmail, setReportEmail, onSendEmail
                     <button onClick={onSendEmail}>Enviar por email</button>
                 </div>
             </div>
-            <ReportView session={selectedSession.session} report={selectedSession.report} />
+            <ReportView session={selectedSession.session} report={selectedSession.report} debugEnabled={debugEnabled} />
         </section>
     );
 }
@@ -1565,7 +1565,11 @@ function ContextList({ items, onDelete }) {
     );
 }
 
-function ReportView({ session, report }) {
+function ReportView({ session, report, debugEnabled }) {
+    const trace = report.trace ?? {};
+    const traceAnswers = trace.answers ?? [];
+    const retrievedContext = trace.retrieved_context ?? [];
+
     return (
         <div className="report-grid-single">
             <article className="report-summary panel deluxe-panel">
@@ -1582,6 +1586,73 @@ function ReportView({ session, report }) {
                     ))}
                 </div>
             </article>
+
+            {debugEnabled && (
+                <div className="stack compact" style={{ marginTop: '1.5rem' }}>
+                    <DebugAccordion label="Trazas del informe" subtitle="Contexto recuperado y respuestas procesadas">
+                        {retrievedContext.length > 0 && (
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <p className="eyebrow">Contexto recuperado ({retrievedContext.length} chunks)</p>
+                                <div className="stack compact">
+                                    {retrievedContext.map((chunk, i) => (
+                                        <div className="trace-context-item" key={i}>
+                                            <div className="trace-context-header">
+                                                <strong>{chunk.title}</strong>
+                                                <span className="score-badge">score: {chunk.score}</span>
+                                            </div>
+                                            <p className="muted">{chunk.source}</p>
+                                            <p>{chunk.content?.slice(0, 300)}{chunk.content?.length > 300 ? '…' : ''}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {traceAnswers.length > 0 && (
+                            <div>
+                                <p className="eyebrow">Por respuesta</p>
+                                <div className="stack compact">
+                                    {traceAnswers.map((answer, i) => (
+                                        <details className="trace-expander" key={i}>
+                                            <summary>
+                                                <span>{answer.question}</span>
+                                                <small>{answer.processed_at ? formatDateTime(answer.processed_at) : ''}</small>
+                                            </summary>
+                                            <div className="trace-expander-body">
+                                                <p className="eyebrow">Transcripcion</p>
+                                                <p>{answer.transcript || <em className="muted">Sin transcripcion</em>}</p>
+                                                {answer.prosody_summary && (
+                                                    <>
+                                                        <p className="eyebrow" style={{ marginTop: '0.75rem' }}>Prosodia</p>
+                                                        <p>{answer.prosody_summary}</p>
+                                                    </>
+                                                )}
+                                                {answer.retrieved_context?.length > 0 && (
+                                                    <>
+                                                        <p className="eyebrow" style={{ marginTop: '0.75rem' }}>Contexto ({answer.retrieved_context.length} chunks)</p>
+                                                        {answer.retrieved_context.map((chunk, j) => (
+                                                            <div className="trace-context-item" key={j}>
+                                                                <strong>{chunk.title}</strong>
+                                                                <span className="score-badge">score: {chunk.score}</span>
+                                                                <p>{chunk.content?.slice(0, 200)}{chunk.content?.length > 200 ? '…' : ''}</p>
+                                                            </div>
+                                                        ))}
+                                                    </>
+                                                )}
+                                            </div>
+                                        </details>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {trace.trace_summary && (
+                            <div style={{ marginTop: '1rem' }}>
+                                <p className="eyebrow">Resumen del modelo</p>
+                                <p>{trace.trace_summary}</p>
+                            </div>
+                        )}
+                    </DebugAccordion>
+                </div>
+            )}
         </div>
     );
 }

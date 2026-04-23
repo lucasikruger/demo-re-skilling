@@ -136,6 +136,28 @@ PROMPT;
         return Json::decodeArray(data_get($response, 'candidates.0.content.parts.0.text'));
     }
 
+    protected function resolveAudioMimeType(?string $storedMimeType): string
+    {
+        if (!$storedMimeType) {
+            return 'audio/webm';
+        }
+
+        // Chrome records audio-only streams as video/webm — Gemini rejects it as video
+        if (str_starts_with($storedMimeType, 'video/')) {
+            return 'audio/webm';
+        }
+
+        // Known Gemini-supported audio types
+        $supported = ['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/aac'];
+        foreach ($supported as $type) {
+            if (str_starts_with($storedMimeType, $type)) {
+                return $type;
+            }
+        }
+
+        return 'audio/webm';
+    }
+
     protected function client(): PendingRequest
     {
         return Http::baseUrl(config('services.gemini.base_url'))

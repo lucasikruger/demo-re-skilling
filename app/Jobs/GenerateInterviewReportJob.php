@@ -109,7 +109,7 @@ class GenerateInterviewReportJob implements ShouldQueue
         ]);
 
         if ($session->participant_email) {
-            Mail::to($session->participant_email)->send(new InterviewReportMail($session->fresh(['answers.question', 'report'])));
+            Mail::to($session->participant_email)->queue(new InterviewReportMail($session->fresh(['answers.question', 'report'])));
         }
     }
 

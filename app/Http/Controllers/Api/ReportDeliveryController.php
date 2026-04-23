@@ -19,7 +19,7 @@ class ReportDeliveryController extends Controller
 
         abort_unless($interviewSession->report, 404);
 
-        Mail::to($validated['email'])->send(new InterviewReportMail($interviewSession->load('report')));
+        Mail::to($validated['email'])->queue(new InterviewReportMail($interviewSession->load('report')));
 
         return response()->json([
             'sent' => true,
